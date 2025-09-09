@@ -1,0 +1,5 @@
+{
+  "name": "FHIR AI Claim Submitter",
+  "description": "A modern, user-friendly interface to streamline the medical claim submission process using mock data from the EPIC FHIR system, enhanced with AI-powered clinical justification generation.",
+  "requestFramePermissions": []
+}
