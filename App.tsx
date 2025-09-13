@@ -1,132 +1,45 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import type { Patient, PatientData } from './types';
-import { getPatientAndData } from './services/fhirService';
+import { searchPatient, getPatientData } from './services/fhirService';
+import PatientSearch from './components/PatientSearch';
 import PatientBanner from './components/PatientBanner';
 import ClaimForm from './components/ClaimForm';
 import { Spinner } from './components/ui/Spinner';
-import { Card } from './components/ui/Card';
-import { Button } from './components/ui/Button';
-
-// FIX: Declare the fhirclient global object to resolve 'Cannot find name 'FHIR'' error.
-declare const FHIR: any;
-
-// A new component for the login screen
-const LoginScreen: React.FC<{ onLogin: () => void }> = ({ onLogin }) => (
-  <div className="max-w-xl mx-auto text-center">
-    <Card>
-      <h2 className="text-xl font-semibold text-slate-700 mb-2">Connect to Health Record</h2>
-      <p className="text-slate-500 mb-6">
-        This application uses the SMART on FHIR protocol to securely connect to a patient's electronic health record.
-      </p>
-      <Button onClick={onLogin}>
-        Launch & Connect to FHIR Server
-      </Button>
-      <p className="text-xs text-slate-400 mt-4">
-        You will be redirected to the sandbox login page to select a patient and authorize access.
-      </p>
-    </Card>
-  </div>
-);
 
 const App: React.FC = () => {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [patientData, setPatientData] = useState<PatientData | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false); // Start with no loading
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // This effect runs once on mount to handle the SMART on FHIR auth flow.
-    // We check for `code` and `state` params in the URL. If they exist, we are in the redirect phase.
-    if (window.location.search.includes('code') && window.location.search.includes('state')) {
-      setIsLoading(true); // Show loader only during the handshake
-      FHIR.oauth2.ready({ completeInTarget: true })
-        .then((client: any) => {
-          // Successfully authorized, we have a client instance. Now fetch data.
-          setError(null);
-          return getPatientAndData(client); // Return the promise to chain .then()
-        })
-        .then(({ patient, patientData }) => {
-          // Data fetched successfully
-          setPatient(patient);
-          setPatientData(patientData);
-        })
-        .catch((err: Error) => {
-          console.error("SMART on FHIR flow error:", err);
-          // Provide more specific feedback based on the error type
-          if (err.message.includes("Failed to fetch")) {
-            setError("Successfully authorized, but failed to fetch patient data from the server. The server may be experiencing issues. Please try again.");
-          } else {
-            setError("An OAuth2 error occurred after returning from the server. This can be caused by a misconfiguration or temporary server issue. Please try again.");
-          }
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
-    }
-    // If no auth params, do nothing and wait for user to click "Launch".
-  }, []); // Empty dependency array ensures this runs only once
-
-  const handleLogin = () => {
+  const handlePatientSearch = async (patientId: string) => {
     setIsLoading(true);
     setError(null);
-
-    // Use a more robust way to define the redirect URI
-    const redirectUri = window.location.origin + window.location.pathname;
-
-    // This configuration uses the public SMART Health IT sandbox, which is open for development
-    // and does not have the strict CORS policies that Epic's server has, resolving the connection error.
-    const smartConfig = {
-      iss: 'https://launch.smarthealthit.org/v/r4/fhir',
-      redirectUri: redirectUri,
-      // No client ID is needed for this public sandbox.
-      // Scopes define the permissions the app is requesting.
-      scope: 'launch/patient patient/*.read openid fhirUser offline_access',
-    };
-
-    FHIR.oauth2.authorize(smartConfig).catch((err: Error) => {
-      console.error("Failed to initiate authorization:", err);
-      setError("Failed to start the authorization redirect. This can be caused by pop-up blockers or a temporary issue with the FHIR server. Please try again.");
+    setPatient(null);
+    setPatientData(null);
+    try {
+      const foundPatient = await searchPatient(patientId);
+      if (foundPatient) {
+        setPatient(foundPatient);
+        const data = await getPatientData(foundPatient.id);
+        setPatientData(data);
+      } else {
+        setError(`Patient with ID "${patientId}" not found. Try "12345".`);
+      }
+    } catch (err) {
+      setError('An unexpected error occurred while fetching patient data.');
+      console.error(err);
+    } finally {
       setIsLoading(false);
-    });
+    }
   };
 
   const handleReset = () => {
-    // A simple way to "log out" is to clear state and reload the page to its initial state.
     setPatient(null);
     setPatientData(null);
     setError(null);
-    // Use the same robust redirect URI method
-    const redirectUri = window.location.origin + window.location.pathname;
-    window.location.href = redirectUri;
-  };
-
-  const renderContent = () => {
-    if (isLoading) {
-      return (
-        <div className="flex justify-center items-center mt-20">
-          <Spinner />
-          <p className="ml-3 text-slate-600">Connecting to FHIR server...</p>
-        </div>
-      );
-    }
-
-    if (error) {
-      return <p className="mt-4 text-center text-red-600 bg-red-100 p-3 rounded-md">{error}</p>;
-    }
-    
-    if (patient && patientData) {
-      return (
-        <div>
-          <PatientBanner patient={patient} onReset={handleReset}/>
-          <ClaimForm patientData={patientData} patient={patient} onReset={handleReset} />
-        </div>
-      );
-    }
-    
-    // If not loading, no error, and no patient data, show the login screen.
-    return <LoginScreen onLogin={handleLogin} />;
-  };
+  }
 
   return (
     <div className="bg-slate-50 min-h-screen text-slate-800">
@@ -143,7 +56,24 @@ const App: React.FC = () => {
         </div>
       </header>
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {renderContent()}
+        {!patient ? (
+          <div className="max-w-xl mx-auto">
+             <PatientSearch onSearch={handlePatientSearch} isLoading={isLoading} />
+              {error && <p className="mt-4 text-center text-red-600 bg-red-100 p-3 rounded-md">{error}</p>}
+          </div>
+        ) : (
+          <div>
+            <PatientBanner patient={patient} onReset={handleReset}/>
+            {patientData ? (
+              <ClaimForm patientData={patientData} patient={patient} onReset={handleReset} />
+            ) : (
+              <div className="flex justify-center items-center mt-8">
+                <Spinner />
+                <p className="ml-2">Loading patient details...</p>
+              </div>
+            )}
+          </div>
+        )}
       </main>
     </div>
   );

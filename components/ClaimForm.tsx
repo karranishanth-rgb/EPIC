@@ -49,8 +49,7 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ patientData, patient, onReset }) 
                 const summary = await summarizePatientData(selectedConditions, selectedProcedures);
                 setPatientSummary(summary);
             } catch (err) {
-                console.error("Summary generation failed:", err);
-                setSummaryError("Failed to generate AI summary due to a configuration issue. You can still review the details below and proceed.");
+                setSummaryError("Failed to generate AI summary. You can still review the details below.");
             } finally {
                 setIsSummarizing(false);
             }
@@ -80,8 +79,7 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ patientData, patient, onReset }) 
       setJustification(result);
       handleNext();
     } catch (err) {
-      console.error("Justification generation failed:", err);
-      setError("Failed to generate AI justification due to a configuration issue. Please check your setup and try again.");
+      setError("Failed to generate AI justification. Please try again.");
     } finally {
       setIsGenerating(false);
     }

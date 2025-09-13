@@ -38,7 +38,7 @@ const PatientBanner: React.FC<PatientBannerProps> = ({ patient, onReset }) => {
           onClick={onReset}
           className="text-sm text-blue-600 hover:text-blue-800 font-semibold transition-colors duration-150"
         >
-            Start Over
+            Search for another patient
         </button>
       </div>
       <div className="mt-4 border-t border-slate-200 pt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
